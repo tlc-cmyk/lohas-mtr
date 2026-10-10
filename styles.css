@@ -1,0 +1,289 @@
+/* LOHAS Park MTR — mobile-first */
+:root {
+  --tkl: #6B2D8B;
+  --tkl-dark: #4A1D63;
+  --tkl-soft: #8B4AAD;
+  --bg: #0f0a14;
+  --surface: #1a1224;
+  --surface-2: #241832;
+  --text: #f5f0fa;
+  --muted: #b8a8c8;
+  --accent: #e8d4ff;
+  --ok: #3dd68c;
+  --warn: #ffb020;
+  --danger: #ff6b6b;
+  --radius: 16px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  font-family: "PingFang HK", "Noto Sans TC", "Helvetica Neue", system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.4;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(107, 45, 139, 0.45), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 100% 100%, rgba(74, 29, 99, 0.35), transparent 50%);
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12px + var(--safe-top)) 16px calc(16px + var(--safe-bottom));
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.line-badge {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--tkl);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 16px rgba(107, 45, 139, 0.5);
+}
+
+.header-text { flex: 1; min-width: 0; }
+
+.header h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+.refresh-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 1.4rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.refresh-btn:active { transform: scale(0.94); }
+.refresh-btn.spinning .refresh-icon {
+  display: inline-block;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.main { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+
+.hero {
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  border: 1px solid rgba(232, 212, 255, 0.12);
+  border-radius: calc(var(--radius) + 4px);
+  padding: 28px 20px 24px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.hero-label {
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.countdown {
+  margin: 12px 0 8px;
+}
+
+.digits {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-size: clamp(3.4rem, 18vw, 4.75rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(232, 212, 255, 0.35);
+}
+
+.digits.urgent { color: var(--warn); }
+.digits.imminent { color: var(--ok); animation: pulse 1.2s ease-in-out infinite; }
+.digits.departed { color: var(--danger); font-size: clamp(2rem, 10vw, 2.5rem); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.hero-dest {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.hero-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 6px;
+}
+
+.section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.train-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.train-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid rgba(232, 212, 255, 0.08);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.train-item.next {
+  border-color: rgba(107, 45, 139, 0.55);
+  background: linear-gradient(90deg, rgba(107, 45, 139, 0.25), var(--surface));
+}
+
+.train-item.skeleton {
+  color: var(--muted);
+  justify-content: center;
+  text-align: center;
+  display: block;
+}
+
+.train-dest {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.train-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.train-eta {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.train-eta .mmss {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.train-eta .clock {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.plat {
+  display: inline-block;
+  background: var(--tkl);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.status-bar {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  border: 1px solid rgba(232, 212, 255, 0.06);
+}
+
+.status-line {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.status-line.ok { color: var(--ok); }
+.status-line.err { color: var(--danger); }
+.status-line.warn { color: var(--warn); }
+
+.status-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
+.footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(232, 212, 255, 0.08);
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.footer .caveat {
+  margin-top: 8px;
+  opacity: 0.9;
+}
+
+.empty-msg {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+@media (min-width: 480px) {
+  .app { padding-left: 20px; padding-right: 20px; }
+  .digits { font-size: 4.75rem; }
+}
