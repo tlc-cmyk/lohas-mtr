@@ -1,10 +1,10 @@
 /**
  * 康城站 (LOHAS Park / LHP) — MTR Next Train countdown
- * Source: Official MTR Next Train API via data.gov.hk
- * https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=TKL&sta=LHP
+ * + 觀塘繞道 (Kwun Tong Bypass) TD traffic snapshot cameras
  *
- * CORS: API returns Access-Control-Allow-Origin: * — works from http(s) origins.
- * file:// may be blocked by some browsers; use a local server on phone if so.
+ * MTR: https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=TKL&sta=LHP
+ * Cams: https://tdcctv.data.one.gov.hk/{CAMERA_ID}.JPG
+ * Camera list: https://static.data.gov.hk/td/traffic-snapshot-images/code/Traffic_Camera_Locations_En.xml
  */
 
 (function () {
@@ -14,6 +14,107 @@
     "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=TKL&sta=LHP&lang=TC";
   const REFRESH_MS = 10000; // API updates ~every 10s; cache-control max-age=10
   const TICK_MS = 250;
+  const CAM_REFRESH_MS = 60000; // TD JPEG cache s-maxage=60; snapshots ~every 2 min
+  const CAM_BASE = "https://tdcctv.data.one.gov.hk/";
+
+  /**
+   * Curated Kwun Tong Bypass cameras for LOHAS Park drivers.
+   * filter: "to-kln" = toward Kowloon (W/N), "to-tko" = toward TKO/east (E/S)
+   * Names in zh-HK Traditional Chinese (official TC XML often uses simplified).
+   */
+  const CAMERAS = [
+    {
+      id: "AID02104",
+      name: "匯景花園",
+      dir: "西行",
+      filter: "to-kln",
+      note: "東端 · 往九龍",
+    },
+    {
+      id: "AID02215",
+      name: "匯景花園",
+      dir: "東行",
+      filter: "to-tko",
+      note: "東端 · 往將軍澳",
+    },
+    {
+      id: "K812F",
+      name: "麗港城",
+      dir: "",
+      filter: "all",
+      note: "觀塘繞道近麗港城",
+    },
+    {
+      id: "AID02106",
+      name: "麗港城",
+      dir: "西行",
+      filter: "to-kln",
+      note: "往九龍",
+    },
+    {
+      id: "AID02214",
+      name: "日升中心",
+      dir: "東行",
+      filter: "to-tko",
+      note: "往將軍澳",
+    },
+    {
+      id: "K813F",
+      name: "勵業街",
+      dir: "",
+      filter: "all",
+      note: "觀塘繞道近勵業街",
+    },
+    {
+      id: "AID02108",
+      name: "觀塘碼頭",
+      dir: "北行",
+      filter: "to-kln",
+      note: "往九龍灣／彩虹",
+    },
+    {
+      id: "AID02211",
+      name: "觀塘碼頭",
+      dir: "東行",
+      filter: "to-tko",
+      note: "往將軍澳方向",
+    },
+    {
+      id: "AID02210",
+      name: "九龍麵粉廠",
+      dir: "南行",
+      filter: "to-tko",
+      note: "往觀塘／將軍澳",
+    },
+    {
+      id: "AID02109",
+      name: "九龍麵粉廠",
+      dir: "北行",
+      filter: "to-kln",
+      note: "往九龍灣",
+    },
+    {
+      id: "K814F",
+      name: "啟祥道",
+      dir: "",
+      filter: "all",
+      note: "觀塘繞道近啟祥道",
+    },
+    {
+      id: "AID02116",
+      name: "彩虹邨",
+      dir: "北行",
+      filter: "to-kln",
+      note: "北端 · 往黃大仙／九龍",
+    },
+    {
+      id: "AID02203",
+      name: "啟晴邨",
+      dir: "南行",
+      filter: "to-tko",
+      note: "北端 · 往觀塘／將軍澳",
+    },
+  ];
 
   /** Station code → Traditional Chinese (HK) + English */
   const STATIONS = {
@@ -41,6 +142,11 @@
     statusLine: document.getElementById("statusLine"),
     statusHint: document.getElementById("statusHint"),
     refreshBtn: document.getElementById("refreshBtn"),
+    camGrid: document.getElementById("camGrid"),
+    camStatusLine: document.getElementById("camStatusLine"),
+    camStatusHint: document.getElementById("camStatusHint"),
+    panelMtr: document.getElementById("panelMtr"),
+    panelCam: document.getElementById("panelCam"),
   };
 
   // --- State ---
@@ -51,6 +157,10 @@
   let lastFetchOkAt = 0;
   let fetching = false;
   let refreshTimer = null;
+  let camFilter = "all";
+  let camBust = Date.now();
+  let camRefreshTimer = null;
+  let activeTab = "mtr";
 
   function stationName(code) {
     const s = STATIONS[code];
@@ -115,6 +225,12 @@
     el.statusLine.textContent = text;
     el.statusLine.className = "status-line" + (kind ? " " + kind : "");
     el.statusHint.textContent = hint || "";
+  }
+
+  function setCamStatus(text, kind, hint) {
+    el.camStatusLine.textContent = text;
+    el.camStatusLine.className = "status-line" + (kind ? " " + kind : "");
+    el.camStatusHint.textContent = hint || "";
   }
 
   function collectTrains(payload) {
@@ -270,18 +386,156 @@
     }
   }
 
+  // --- Traffic cameras ---
+
+  function camUrl(id) {
+    return `${CAM_BASE}${id}.JPG?t=${camBust}`;
+  }
+
+  function visibleCams() {
+    if (camFilter === "all") return CAMERAS;
+    return CAMERAS.filter(
+      (c) => c.filter === camFilter || c.filter === "all"
+    );
+  }
+
+  function renderCams() {
+    const list = visibleCams();
+    el.camGrid.innerHTML = "";
+    if (list.length === 0) {
+      el.camGrid.innerHTML =
+        '<p class="empty-msg">此方向暫無精選攝影機</p>';
+      return;
+    }
+
+    list.forEach((cam) => {
+      const card = document.createElement("article");
+      card.className = "cam-card";
+      card.dataset.id = cam.id;
+
+      const title = cam.dir
+        ? `觀塘繞道近${cam.name} · ${cam.dir}`
+        : `觀塘繞道近${cam.name}`;
+
+      const img = document.createElement("img");
+      img.className = "cam-img";
+      img.alt = title;
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.src = camUrl(cam.id);
+      img.addEventListener("error", () => {
+        card.classList.add("cam-error");
+        if (!card.querySelector(".cam-fail")) {
+          const fail = document.createElement("p");
+          fail.className = "cam-fail";
+          fail.textContent = "圖像暫時無法載入";
+          card.appendChild(fail);
+        }
+      });
+      img.addEventListener("load", () => {
+        card.classList.remove("cam-error");
+        const fail = card.querySelector(".cam-fail");
+        if (fail) fail.remove();
+      });
+
+      const head = document.createElement("div");
+      head.className = "cam-head";
+      head.innerHTML = `
+        <div class="cam-title">${title}</div>
+        <div class="cam-meta">
+          ${cam.dir ? `<span class="cam-dir">${cam.dir}</span>` : ""}
+          <span class="cam-id">${cam.id}</span>
+          ${cam.note ? `<span class="cam-note">${cam.note}</span>` : ""}
+        </div>`;
+
+      card.appendChild(head);
+      card.appendChild(img);
+      el.camGrid.appendChild(card);
+    });
+
+    setCamStatus(
+      `已刷新 · ${formatClockHKT(Date.now())} HKT · ${list.length} 部攝影機`,
+      "ok",
+      `運輸署快拍 · 官方約每 2 分鐘更新 · 本頁每 ${
+        CAM_REFRESH_MS / 1000
+      } 秒強制刷新（?t= 破快取）`
+    );
+  }
+
+  function refreshCams() {
+    camBust = Date.now();
+    // If cards already exist for current filter, just swap img src to avoid flicker rebuild
+    const imgs = el.camGrid.querySelectorAll("img.cam-img");
+    if (imgs.length > 0 && imgs.length === visibleCams().length) {
+      imgs.forEach((img) => {
+        const card = img.closest(".cam-card");
+        const id = card && card.dataset.id;
+        if (id) img.src = camUrl(id);
+      });
+      setCamStatus(
+        `已刷新 · ${formatClockHKT(Date.now())} HKT · ${imgs.length} 部攝影機`,
+        "ok",
+        `運輸署快拍 · 官方約每 2 分鐘更新 · 本頁每 ${
+          CAM_REFRESH_MS / 1000
+        } 秒強制刷新`
+      );
+    } else {
+      renderCams();
+    }
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    const isMtr = tab === "mtr";
+    document.getElementById("tabMtr").classList.toggle("active", isMtr);
+    document.getElementById("tabCam").classList.toggle("active", !isMtr);
+    document
+      .getElementById("tabMtr")
+      .setAttribute("aria-selected", isMtr ? "true" : "false");
+    document
+      .getElementById("tabCam")
+      .setAttribute("aria-selected", isMtr ? "false" : "true");
+    el.panelMtr.classList.toggle("active", isMtr);
+    el.panelCam.classList.toggle("active", !isMtr);
+    el.panelMtr.hidden = !isMtr;
+    el.panelCam.hidden = isMtr;
+    if (!isMtr) refreshCams();
+  }
+
+  function onRefreshClick() {
+    if (activeTab === "cam") refreshCams();
+    else fetchSchedule();
+  }
+
   function start() {
     fetchSchedule();
     refreshTimer = setInterval(fetchSchedule, REFRESH_MS);
     setInterval(render, TICK_MS);
 
-    el.refreshBtn.addEventListener("click", () => fetchSchedule());
+    renderCams();
+    camRefreshTimer = setInterval(refreshCams, CAM_REFRESH_MS);
+
+    el.refreshBtn.addEventListener("click", onRefreshClick);
+
+    document.querySelectorAll(".tab").forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
+    document.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        camFilter = chip.dataset.filter;
+        document
+          .querySelectorAll(".chip")
+          .forEach((c) => c.classList.toggle("active", c === chip));
+        renderCams();
+      });
+    });
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        // Refresh immediately when returning to the tab
         if (Date.now() - lastFetchOkAt > 5000) fetchSchedule();
         else render();
+        refreshCams();
       }
     });
   }

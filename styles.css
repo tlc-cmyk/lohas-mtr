@@ -1,4 +1,4 @@
-/* LOHAS Park MTR — mobile-first */
+/* LOHAS Park MTR + Kwun Tong Bypass cams — mobile-first */
 :root {
   --tkl: #6B2D8B;
   --tkl-dark: #4A1D63;
@@ -49,7 +49,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .line-badge {
@@ -105,7 +105,42 @@ body {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.main { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+/* Tabs */
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(232, 212, 255, 0.08);
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 10px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab.active {
+  background: var(--tkl);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(107, 45, 139, 0.45);
+}
+
+.tab-panel { display: none; flex-direction: column; gap: 18px; }
+.tab-panel.active { display: flex; }
+
+.main { flex: 1; display: flex; flex-direction: column; }
 
 .hero {
   background: linear-gradient(160deg, var(--surface-2), var(--surface));
@@ -281,6 +316,109 @@ body {
   padding: 24px 12px;
   background: var(--surface);
   border-radius: var(--radius);
+}
+
+/* Camera panel */
+.cam-intro .section-title { margin-bottom: 6px; }
+
+.cam-blurb {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.cam-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid rgba(232, 212, 255, 0.14);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip.active {
+  background: rgba(107, 45, 139, 0.45);
+  border-color: rgba(232, 212, 255, 0.35);
+  color: #fff;
+}
+
+.cam-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cam-card {
+  background: var(--surface);
+  border: 1px solid rgba(232, 212, 255, 0.1);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cam-head {
+  padding: 12px 14px 8px;
+}
+
+.cam-title {
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.cam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.cam-dir {
+  background: var(--tkl);
+  color: #fff;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+}
+
+.cam-id {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.cam-note { opacity: 0.9; }
+
+.cam-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #0a0610;
+  min-height: 140px;
+}
+
+.cam-card.cam-error .cam-img {
+  opacity: 0.35;
+}
+
+.cam-fail {
+  padding: 8px 14px 12px;
+  color: var(--danger);
+  font-size: 0.8rem;
 }
 
 @media (min-width: 480px) {

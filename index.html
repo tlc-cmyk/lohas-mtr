@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#6B2D8B" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="康城站實時列車倒數 — LOHAS Park MTR next train" />
-  <title>康城站 · 下一班車</title>
+  <meta name="description" content="康城站實時列車倒數 · 觀塘繞道交通快拍 — LOHAS Park MTR & Kwun Tong Bypass cams" />
+  <title>康城站 · 下一班車／觀塘繞道</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -23,33 +23,60 @@
       </button>
     </header>
 
+    <nav class="tabs" role="tablist" aria-label="內容分頁">
+      <button type="button" class="tab active" role="tab" id="tabMtr" aria-controls="panelMtr" aria-selected="true" data-tab="mtr">港鐵倒數</button>
+      <button type="button" class="tab" role="tab" id="tabCam" aria-controls="panelCam" aria-selected="false" data-tab="cam">觀塘繞道</button>
+    </nav>
+
     <main class="main">
-      <section class="hero" id="hero" aria-live="polite">
-        <p class="hero-label">下一班開出</p>
-        <div class="countdown" id="mainCountdown">
-          <span class="digits" id="mainDigits">--:--</span>
+      <div id="panelMtr" class="tab-panel active" role="tabpanel" aria-labelledby="tabMtr">
+        <section class="hero" id="hero" aria-live="polite">
+          <p class="hero-label">下一班開出</p>
+          <div class="countdown" id="mainCountdown">
+            <span class="digits" id="mainDigits">--:--</span>
+          </div>
+          <p class="hero-dest" id="mainDest">載入中…</p>
+          <p class="hero-meta" id="mainMeta"></p>
+        </section>
+
+        <section class="list-section" aria-labelledby="listTitle">
+          <h2 id="listTitle" class="section-title">即將開出</h2>
+          <ul class="train-list" id="trainList">
+            <li class="train-item skeleton">載入列車資料…</li>
+          </ul>
+        </section>
+
+        <section class="status-bar" id="statusBar">
+          <p class="status-line" id="statusLine">正在連接港鐵開放數據…</p>
+          <p class="status-hint" id="statusHint"></p>
+        </section>
+      </div>
+
+      <div id="panelCam" class="tab-panel" role="tabpanel" aria-labelledby="tabCam" hidden>
+        <section class="cam-intro" aria-labelledby="camTitle">
+          <h2 id="camTitle" class="section-title">觀塘繞道交通快拍</h2>
+          <p class="cam-blurb">運輸署官方快拍（約每 2 分鐘更新）。適合由康城經將軍澳隧道／觀塘繞道出入九龍時參考。</p>
+        </section>
+
+        <div class="cam-filters" role="group" aria-label="方向篩選">
+          <button type="button" class="chip active" data-filter="all">全部</button>
+          <button type="button" class="chip" data-filter="to-kln">往九龍</button>
+          <button type="button" class="chip" data-filter="to-tko">往將軍澳</button>
         </div>
-        <p class="hero-dest" id="mainDest">載入中…</p>
-        <p class="hero-meta" id="mainMeta"></p>
-      </section>
 
-      <section class="list-section" aria-labelledby="listTitle">
-        <h2 id="listTitle" class="section-title">即將開出</h2>
-        <ul class="train-list" id="trainList">
-          <li class="train-item skeleton">載入列車資料…</li>
-        </ul>
-      </section>
+        <div class="cam-grid" id="camGrid" aria-live="polite"></div>
 
-      <section class="status-bar" id="statusBar">
-        <p class="status-line" id="statusLine">正在連接港鐵開放數據…</p>
-        <p class="status-hint" id="statusHint"></p>
-      </section>
+        <section class="status-bar" id="camStatusBar">
+          <p class="status-line" id="camStatusLine">正在載入攝影機…</p>
+          <p class="status-hint" id="camStatusHint"></p>
+        </section>
+      </div>
     </main>
 
     <footer class="footer">
-      <p>資料來源：港鐵 Next Train 開放數據（data.gov.hk）</p>
-      <p>更新約每 10 秒 · 倒數每秒刷新</p>
-      <p class="caveat">康城為支線終點，列車只往調景嶺／北角方向開出。開出時間為估計值，請以站內顯示為準。</p>
+      <p>港鐵：Next Train 開放數據（data.gov.hk）· 約每 10 秒更新</p>
+      <p>交通快拍：運輸署 TD CCTV（tdcctv.data.one.gov.hk）· 圖像約每 2 分鐘、本頁每 60 秒刷新</p>
+      <p class="caveat">康城為支線終點，列車只往調景嶺／北角方向開出。開出時間與路況快拍均為估計／延遲參考，請以站內顯示及實際路況為準。</p>
     </footer>
   </div>
   <script src="app.js"></script>
