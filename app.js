@@ -233,6 +233,17 @@
     el.camStatusHint.textContent = hint || "";
   }
 
+  /**
+   * MTR's `time` is NOT a stable absolute ETA. Empirically it is regenerated as
+   * curr_time + ttnt minutes on every response, so `time` slides forward while
+   * ttnt stays constant. Parsing `time` as a deadline therefore resets the
+   * MM:SS countdown back to ttnt:00 on every ~10s refresh (looks "stuck" near
+   * ~7 min at LHP headway). Official docs even mark ttnt as Dummy, but it is
+   * the only meaningful remaining-minutes signal; `time` matches it exactly.
+   *
+   * Fix: derive a deadline from ttnt, then ratchet — never let a matched
+   * train's deadline slip later on refresh. Local ticks provide seconds.
+   */
   function collectTrains(payload) {
     const block = payload?.data?.["TKL-LHP"];
     if (!block) return [];
@@ -242,20 +253,48 @@
       if (!Array.isArray(arr)) continue;
       for (const t of arr) {
         if (t.valid && t.valid !== "Y") continue;
-        const timeMs = parseApiTime(t.time);
-        if (!Number.isFinite(timeMs)) continue;
+        const ttnt = Number.parseInt(String(t.ttnt ?? ""), 10);
+        if (!Number.isFinite(ttnt) || ttnt < 0) continue;
         out.push({
           dest: t.dest,
           plat: String(t.plat ?? ""),
-          timeMs,
           seq: String(t.seq ?? ""),
           dir,
-          ttnt: t.ttnt,
+          ttnt,
         });
       }
     }
-    out.sort((a, b) => a.timeMs - b.timeMs);
     return out;
+  }
+
+  /** Match incoming rows to previous deadlines; ratchet so ETA never slips later. */
+  function mergeTrainDeadlines(incoming, previous, now) {
+    const prev = previous.slice();
+    const MERGE_WINDOW_MS = 150000; // 2.5 min — same physical train across refreshes
+    const merged = incoming.map((t) => {
+      const apiDeadline = now + t.ttnt * 60 * 1000;
+      let bestIdx = -1;
+      let bestDist = Infinity;
+      for (let i = 0; i < prev.length; i++) {
+        const p = prev[i];
+        if (p.dest !== t.dest || p.plat !== t.plat || p.dir !== t.dir) continue;
+        const dist = Math.abs(p.timeMs - apiDeadline);
+        if (dist < bestDist && dist < MERGE_WINDOW_MS) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      let timeMs = apiDeadline;
+      if (bestIdx >= 0) {
+        const p = prev.splice(bestIdx, 1)[0];
+        // Never push ETA later (stops the curr_time+ttnt slide reset).
+        // Still allow snap-earlier when ttnt drops.
+        timeMs = Math.min(p.timeMs, apiDeadline);
+      }
+      return { ...t, timeMs };
+    });
+    merged.sort((a, b) => a.timeMs - b.timeMs);
+    return merged;
   }
 
   function render() {
@@ -340,7 +379,7 @@
       if (data.status === 0) {
         const msg = data.message || "特別車務安排";
         setStatus(msg, "warn", data.url || "");
-        trains = collectTrains(data);
+        trains = mergeTrainDeadlines(collectTrains(data), trains, nowMs());
         lastFetchOkAt = Date.now();
         render();
         return;
@@ -353,18 +392,21 @@
         clockSkewMs = apiCurr - Date.now();
       }
 
-      trains = collectTrains(data);
+      const incoming = collectTrains(data);
+      trains = mergeTrainDeadlines(incoming, trains, nowMs());
       lastFetchOkAt = Date.now();
 
       const delay =
         data.isdelay === "Y" ? " · 資料標示可能延誤" : "";
       const ago = Math.round((Date.now() - t0) / 1000);
+      const nextTtnt =
+        incoming.length > 0 ? ` · API ttnt ${incoming[0].ttnt} 分` : "";
       setStatus(
         `已更新 · ${formatClockHKT(nowMs())} HKT${delay}`,
         "ok",
         `官方 API · 往返約 ${ago < 1 ? "<1" : ago} 秒 · 自動每 ${
           REFRESH_MS / 1000
-        } 秒刷新`
+        } 秒刷新${nextTtnt}`
       );
       render();
     } catch (err) {

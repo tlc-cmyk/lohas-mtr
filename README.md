@@ -69,6 +69,7 @@ Many more Kwun Tong Bypass cameras exist in the official list (AID02104–AID021
 
 - Tabs: **港鐵倒數** · **觀塘繞道**
 - MTR: large **MM:SS** countdown; auto-refresh every 10s; clock skew from API `curr_time`
+- MTR ETA: uses **`ttnt` (minutes)** as the source of truth. The API’s `time` field is regenerated as `curr_time + ttnt` on every response (it slides forward), so treating `time` as a fixed deadline reset the countdown to `ttnt:00` every refresh. Deadlines are **ratcheted** (never slip later) so seconds tick smoothly between refreshes.
 - Cams: name + direction + live JPEG; auto-refresh every 60s; filters by travel direction
 - UI in **Traditional Chinese (Hong Kong)**
 
