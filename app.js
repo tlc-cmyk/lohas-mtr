@@ -136,6 +136,7 @@
   // --- DOM ---
   const el = {
     mainDigits: document.getElementById("mainDigits"),
+    mainDepart: document.getElementById("mainDepart"),
     mainDest: document.getElementById("mainDest"),
     mainMeta: document.getElementById("mainMeta"),
     trainList: document.getElementById("trainList"),
@@ -221,6 +222,20 @@
     return `${get("hour")}:${get("minute")}:${get("second")}`;
   }
 
+  /** Absolute departure clock HH:mm in HKT (no seconds — scheduled leave time). */
+  function formatDepartHHmm(ms) {
+    if (!Number.isFinite(ms)) return "";
+    const d = new Date(ms);
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Hong_Kong",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    const get = (t) => parts.find((p) => p.type === t)?.value ?? "";
+    return `${get("hour")}:${get("minute")}`;
+  }
+
   function setStatus(text, kind, hint) {
     el.statusLine.textContent = text;
     el.statusLine.className = "status-line" + (kind ? " " + kind : "");
@@ -236,13 +251,19 @@
   /**
    * MTR's `time` is NOT a stable absolute ETA. Empirically it is regenerated as
    * curr_time + ttnt minutes on every response, so `time` slides forward while
-   * ttnt stays constant. Parsing `time` as a deadline therefore resets the
-   * MM:SS countdown back to ttnt:00 on every ~10s refresh (looks "stuck" near
-   * ~7 min at LHP headway). Official docs even mark ttnt as Dummy, but it is
-   * the only meaningful remaining-minutes signal; `time` matches it exactly.
+   * ttnt stays constant. Parsing `time` as a deadline therefore resets MM:SS
+   * to ttnt:00 on every ~10s refresh. Official docs mark ttnt as Dummy, but it
+   * is the only meaningful remaining-minutes signal.
    *
-   * Fix: derive a deadline from ttnt, then ratchet — never let a matched
-   * train's deadline slip later on refresh. Local ticks provide seconds.
+   * Prior ratchet still glitched: MERGE_WINDOW was only 2.5 min. While ttnt
+   * stays flat (common at LHP ~7–8 min headway), local deadline drifts behind
+   * (now+ttnt) by >2.5 min → identity match fails → countdown jumps back to
+   * ttnt:00. All LHP DOWN rows also share dest/plat/dir, so identity is
+   * nearest-deadline within a headway-sized window.
+   *
+   * Fix: match with a 15 min window; same ttnt keeps local seconds (never
+   * remount to ttnt:00); lower ttnt ratchets earlier; higher ttnt (delay)
+   * accepts the new later ETA; board shifts re-pair by nearest ETA.
    */
   function collectTrains(payload) {
     const block = payload?.data?.["TKL-LHP"];
@@ -267,33 +288,71 @@
     return out;
   }
 
-  /** Match incoming rows to previous deadlines; ratchet so ETA never slips later. */
+  /**
+   * Match incoming API rows to previous local deadlines.
+   * @param {{dest:string,plat:string,seq:string,dir:string,ttnt:number}[]} incoming
+   * @param {{dest:string,plat:string,seq:string,dir:string,ttnt:number,timeMs:number}[]} previous
+   * @param {number} now
+   */
   function mergeTrainDeadlines(incoming, previous, now) {
-    const prev = previous.slice();
-    const MERGE_WINDOW_MS = 150000; // 2.5 min — same physical train across refreshes
+    const prev = previous.map((p) => ({ ...p, _used: false }));
+    // Must cover full LHP headway while ttnt stays constant (old 2.5 min was too tight).
+    const MERGE_WINDOW_MS = 15 * 60 * 1000;
+
     const merged = incoming.map((t) => {
-      const apiDeadline = now + t.ttnt * 60 * 1000;
+      const ceilingMs = t.ttnt * 60 * 1000;
+      const apiDeadline = now + ceilingMs;
+
       let bestIdx = -1;
       let bestDist = Infinity;
       for (let i = 0; i < prev.length; i++) {
         const p = prev[i];
+        if (p._used) continue;
         if (p.dest !== t.dest || p.plat !== t.plat || p.dir !== t.dir) continue;
         const dist = Math.abs(p.timeMs - apiDeadline);
-        if (dist < bestDist && dist < MERGE_WINDOW_MS) {
+        if (dist < bestDist && dist <= MERGE_WINDOW_MS) {
           bestDist = dist;
           bestIdx = i;
         }
       }
+
       let timeMs = apiDeadline;
       if (bestIdx >= 0) {
-        const p = prev.splice(bestIdx, 1)[0];
-        // Never push ETA later (stops the curr_time+ttnt slide reset).
-        // Still allow snap-earlier when ttnt drops.
-        timeMs = Math.min(p.timeMs, apiDeadline);
+        const p = prev[bestIdx];
+        p._used = true;
+        if (t.ttnt === p.ttnt) {
+          // Same ttnt: keep local seconds — never reset upward on refresh.
+          timeMs = p.timeMs;
+          const remain = timeMs - now;
+          if (remain > ceilingMs) {
+            // Clock/skew drift only — pull back to ceiling, not a full remount.
+            timeMs = now + ceilingMs;
+          } else if (remain < 0 && t.ttnt > 0) {
+            // Counted past zero while API still shows minutes: stay "imminent",
+            // do not jump back up to ttnt:00 (that was the visible reset).
+            timeMs = now;
+          }
+        } else if (t.ttnt < p.ttnt) {
+          // ttnt decreased — may snap earlier; never later than previous.
+          timeMs = Math.min(p.timeMs, apiDeadline);
+          if (timeMs - now > ceilingMs) timeMs = now + ceilingMs;
+        } else {
+          // ttnt increased (delay) — accept new later ETA.
+          timeMs = apiDeadline;
+        }
       }
-      return { ...t, timeMs };
+
+      return {
+        dest: t.dest,
+        plat: t.plat,
+        seq: t.seq,
+        dir: t.dir,
+        ttnt: t.ttnt,
+        timeMs,
+      };
     });
-    merged.sort((a, b) => a.timeMs - b.timeMs);
+
+    merged.sort((a, b) => a.timeMs - b.timeMs || a.ttnt - b.ttnt);
     return merged;
   }
 
@@ -305,6 +364,7 @@
     if (active.length === 0) {
       el.mainDigits.textContent = "--:--";
       el.mainDigits.className = "digits";
+      if (el.mainDepart) el.mainDepart.textContent = "";
       el.mainDest.textContent =
         trains.length === 0 ? "暫無列車資料" : "等候下一班…";
       el.mainMeta.textContent =
@@ -317,14 +377,19 @@
     const next = active[0];
     const remain = next.timeMs - now;
     const cd = formatCountdown(remain);
+    const nextDepart = formatDepartHHmm(next.timeMs);
     el.mainDigits.textContent = cd.text;
     el.mainDigits.className = "digits" + (cd.cls ? " " + cd.cls : "");
+    if (el.mainDepart) {
+      el.mainDepart.textContent = nextDepart
+        ? `開出時間 ${nextDepart}`
+        : "";
+    }
     el.mainDest.textContent = `往 ${stationName(next.dest)}`;
     const dirNote = DIR_LABEL[next.dir] || "";
     el.mainMeta.textContent = [
       next.plat ? `月台 ${next.plat}` : "",
       dirNote,
-      `預計 ${formatClockHKT(next.timeMs)}`,
     ]
       .filter(Boolean)
       .join(" · ");
@@ -334,6 +399,7 @@
       const li = document.createElement("li");
       li.className = "train-item" + (i === 0 ? " next" : "");
       const r = formatCountdown(t.timeMs - now);
+      const depart = formatDepartHHmm(t.timeMs);
       const platHtml = t.plat
         ? `<span class="plat">月台 ${t.plat}</span>`
         : "";
@@ -346,7 +412,7 @@
         </div>
         <div class="train-eta">
           <div class="mmss">${r.text}</div>
-          <div class="clock">${formatClockHKT(t.timeMs)}</div>
+          <div class="clock">${depart ? `開出 ${depart}` : ""}</div>
         </div>`;
       el.trainList.appendChild(li);
     });
@@ -388,8 +454,12 @@
       const block = data?.data?.["TKL-LHP"];
       const apiCurr = parseApiTime(block?.curr_time || data.curr_time);
       if (Number.isFinite(apiCurr)) {
-        // Align local clock to API curr_time (HKT)
-        clockSkewMs = apiCurr - Date.now();
+        // Align local clock to API curr_time (HKT). Ignore tiny jitter so
+        // remainMs does not visibly jump on every 10s refresh.
+        const nextSkew = apiCurr - Date.now();
+        if (lastFetchOkAt === 0 || Math.abs(nextSkew - clockSkewMs) > 3000) {
+          clockSkewMs = nextSkew;
+        }
       }
 
       const incoming = collectTrains(data);

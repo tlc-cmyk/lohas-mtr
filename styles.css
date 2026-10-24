@@ -183,10 +183,19 @@ body {
   50% { opacity: 0.75; }
 }
 
+.hero-depart {
+  margin-top: 6px;
+  font-size: clamp(1.35rem, 5.5vw, 1.75rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
 .hero-dest {
   font-size: 1.25rem;
   font-weight: 700;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .hero-meta {
@@ -256,9 +265,12 @@ body {
 }
 
 .train-eta .clock {
-  color: var(--muted);
-  font-size: 0.75rem;
-  margin-top: 2px;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
 }
 
 .plat {
